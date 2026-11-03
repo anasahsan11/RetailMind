@@ -2,31 +2,40 @@
 import joblib
 import pandas as pd
 
-from .config import MODEL_PATH
-
-DAY2_MODEL_PATH = (
-    MODEL_PATH.parent / "churn_champion_day2.joblib"
-)
+from .config import MODEL_DIR
 
 
-def predict(customer, model_version="day2"):
+# Model paths for each development stage
+MODEL_PATHS = {
+    "day1": MODEL_DIR / "churn_pipeline.joblib",
+    "day2": MODEL_DIR / "churn_champion_day2.joblib",
+    "day3": MODEL_DIR / "churn_v3.joblib",
+}
 
-    if model_version == "day1":
-        model_path = MODEL_PATH
 
-    elif model_version == "day2":
-        model_path = DAY2_MODEL_PATH
+def predict(customer, model_version="day3"):
 
-    else:
-        raise ValueError("Invalid model version")
-
-    if not model_path.exists():
-        raise FileNotFoundError(
-            "Model not found. Train the model first."
+    # Validate model version
+    if model_version not in MODEL_PATHS:
+        raise ValueError(
+            f"Invalid model version: {model_version}. "
+            f"Available versions: {list(MODEL_PATHS.keys())}"
         )
 
+    # Get model path
+    model_path = MODEL_PATHS[model_version]
+
+    # Check model availability
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Model not found: {model_path}. "
+            "Please train the model first."
+        )
+
+    # Load trained model
     model = joblib.load(model_path)
 
+    # Check single or batch prediction
     is_batch = isinstance(customer, list)
 
     records = customer if is_batch else [customer]
@@ -34,24 +43,30 @@ def predict(customer, model_version="day2"):
     if not records:
         return []
 
+    # Convert input into DataFrame
     frame = pd.DataFrame(records)
 
+    # Convert TotalCharges to numeric
     if "TotalCharges" in frame.columns:
         frame["TotalCharges"] = pd.to_numeric(
             frame["TotalCharges"],
             errors="coerce"
         )
 
+    # Predict customer churn
     predictions = model.predict(frame)
 
+    # Extract probability for churn = Yes
     churn_index = list(model.classes_).index("Yes")
 
     probabilities = model.predict_proba(frame)[:, churn_index]
 
+    # Prepare prediction response
     results = [
         {
             "prediction": str(label),
-            "churn_probability": float(probability)
+            "churn_probability": float(probability),
+            "model_version": model_version
         }
         for label, probability in zip(
             predictions,

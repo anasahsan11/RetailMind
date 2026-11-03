@@ -7,33 +7,35 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 def build_preprocessor(X):
 
-    numeric_features = X.select_dtypes(
-        include=["number"]
-    ).columns.tolist()
+    numerical_features = X.select_dtypes(
+        include=["int64", "float64"]
+    ).columns
 
     categorical_features = X.select_dtypes(
-        exclude=["number"]
-    ).columns.tolist()
+        include=["object", "category"]
+    ).columns
 
-    numeric_pipeline = Pipeline([
+    numerical_pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler())
+        ("scaler", StandardScaler()),
     ])
 
     categorical_pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore"))
+        ("encoder", OneHotEncoder(handle_unknown="ignore")),
     ])
 
-    return ColumnTransformer([
-        ("numeric", numeric_pipeline, numeric_features),
-        ("categorical", categorical_pipeline, categorical_features)
+    preprocessor = ColumnTransformer([
+        ("num", numerical_pipeline, numerical_features),
+        ("cat", categorical_pipeline, categorical_features),
     ])
+
+    return preprocessor
 
 
 def build_pipeline(X, classifier):
 
     return Pipeline([
         ("preprocessor", build_preprocessor(X)),
-        ("classifier", classifier)
+        ("classifier", classifier),
     ])
